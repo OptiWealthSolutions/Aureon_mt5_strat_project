@@ -1,4 +1,4 @@
-#!/bin/bash
+send#!/bin/bash
 
 # Arrêt en cas d'erreur
 set -e
