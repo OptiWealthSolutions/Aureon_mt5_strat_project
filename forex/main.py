@@ -59,7 +59,7 @@ def check_symbol_for_signal(symbol):
 
 
 def run_bot():
-    print("Démarrage de Areon FX ")
+    print("Démarrage de Aureon FX ")
     
     if not initialize_mt5():
         print("Échec de l'initialisation de MT5. Arrêt du bot.")
