@@ -3,7 +3,8 @@ import time
 from datetime import datetime
 
 from data_fetcher import initialize_mt5, get_data_from_mt5, shutdown_mt5
-
+from strategy import Strategy
+from trade_executor import place_market_order, close_all_positions_for_symbol, check_open_positions
 # univers de trading :
 FOREX_UNIVERSE = [
     "EURUSD", 
@@ -17,31 +18,23 @@ FOREX_UNIVERSE = [
 
 # Strategy Params 
 
-TIMEFRAME = mt5.TIMEFRAME_M1 
-SMA_SHORT = 7
-SMA_LONG = 20
+TIMEFRAME = mt5.TIMEFRAME_H1 
+Risk_max = 0.02
 LOT_SIZE = 0.03 
 sleeping_time = 60
+window = 14
+
 def check_symbol_for_signal(symbol):
-    """_
-    Exécute toute la logique de vérification pour UN SEUL symbole.
-    """
     print(f"\n--- Vérification de {symbol} ---")
     try:
 
-        n_bars = SMA_LONG + 50 
+        n_bars = window + 50
         df_raw = get_data_from_mt5(symbol, TIMEFRAME, n_bars)
-        
-
-
-        # df_strategy = add_moving_average_signals(df_raw, SMA_SHORT, SMA_LONG)
-
-
+        df_strategy = Strategy(df_raw)
         last_signal = df_strategy['signal'].iloc[-1]
-        # current_position = check_open_positions(symbol) 
+        current_position = check_open_positions(symbol) 
 
         print(f"[{symbol}] Dernier signal: {last_signal} | Position actuelle: {current_position}")
-
 
         if last_signal == 1 and current_position == 0:
             print(f"ACTION ({symbol}): Signal d'achat détecté. Ouverture d'une position LONG.")
