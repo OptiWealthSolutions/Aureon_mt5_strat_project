@@ -11,13 +11,12 @@ def Strategy(df,symbol):
     df_strategy = df.copy()
     df_strategy = RSI(df_strategy, window=14)
     #df_strategy = ADX(df_strategy, window=14)
-    df_strategy = YieldSpread(symbol, df_strategy)
+    #df_strategy = YieldSpread(symbol, df_strategy)
     df_strategy = vol(df_strategy, window=14)
-
+    vol_threshold = df_strategy['Volatility'].mean()
     df_strategy['signal'] = np.where(
-        (df_strategy['RSI'] < 30) & (df_strategy['+DI'] > df_strategy['-DI']) & (df_strategy['Ticker_Yield_Spread'] > 0),
-        1,np.where((df_strategy['RSI'] > 70) & (df_strategy['+DI'] < df_strategy['-DI']) & (df_strategy['Ticker_Yield_Spread'] < 0),-1,0)
-    )
+        (df_strategy['RSI'] < 30),1,(np.where((df_strategy['RSI'] > 70) ),-1,0))
+    
 
     return df_strategy
 
