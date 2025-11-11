@@ -10,7 +10,7 @@ fredapi_key = "e16626c91fa2b1af27704a783939bf72"
 def Strategy(df,symbol):
     df_strategy = df.copy()
     df_strategy = RSI(df_strategy, window=14)
-    df_strategy = ADX(df_strategy, window=14)
+    #df_strategy = ADX(df_strategy, window=14)
     df_strategy = YieldSpread(symbol, df_strategy)
     df_strategy = vol(df_strategy, window=14)
 
