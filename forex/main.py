@@ -24,10 +24,6 @@ sleeping_time = 60
 window = 14
 
 def check_symbol_for_signal(symbol):
-    """
-    Exécute la logique de vérification complète (Long et Short)
-    pour UN SEUL symbole.
-    """
     print(f"\n--- Vérification de {symbol} ---")
     try:
    
