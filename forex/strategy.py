@@ -7,12 +7,12 @@ from features_engineer.alternative_features import sentiment
 
 fredapi_key = "e16626c91fa2b1af27704a783939bf72"
 
-def Strategy(df):
+def Strategy(df,symbol):
     df_strategy = df.copy()
-    df_strategy = RSI(df, window=14)
-    df_strategy = ADX(df, window=14)
-    df_strategy = YieldSpread(df)
-    df_strategy = vol(df, window=14)
+    df_strategy = RSI(df_strategy, window=14)
+    df_strategy = ADX(df_strategy, window=14)
+    df_strategy = YieldSpread(symbol, df_strategy)
+    df_strategy = vol(df_strategy, window=14)
 
     df_strategy['signal'] = np.where(
         (df_strategy['RSI'] < 30) & (df_strategy['+DI'] > df_strategy['-DI']) & (df_strategy['Ticker_Yield_Spread'] > 0),
@@ -42,7 +42,7 @@ def ADX(df, window=14):
     return df_strat
 
 
-def YieldSpread(symbol, data, api_key):
+def YieldSpread(symbol, data):
     fr = fred.Fred(api_key=fredapi_key)
     fred_yield_tickers = {
         'US_10Y': 'DGS10',

@@ -33,7 +33,7 @@ def check_symbol_for_signal(symbol):
         if df_raw is None:
             print(f"Impossible de récupérer les données pour {symbol}.")
             return
-        df_strategy = Strategy(df_raw)
+        df_strategy = Strategy(df_raw, symbol)
         
         last_signal = df_strategy['signal'].iloc[-1]
         current_position = check_open_positions(symbol) # 0=Flat, 1=Long, -1=Short
