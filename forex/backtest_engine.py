@@ -5,8 +5,8 @@ from strategy import Strategy
 import pandas as pd
 
 SYMBOL = "EURUSD"
-TIMEFRAME = mt5.TIMEFRAME_H1
-N_BARS = 5000
+TIMEFRAME = mt5.TIMEFRAME_M1
+N_BARS = 13000
 
 INITIAL_CAPITAL = 1000
 LOT_SIZE = 0.2

@@ -4,22 +4,22 @@ import fredapi as fred
 from ta.momentum import RSIIndicator
 from ta.volume import MFIIndicator
 from ta.trend import ADXIndicator
-from features_engineer.alternative_features import sentiment
 
 fredapi_key = "e16626c91fa2b1af27704a783939bf72"
 
+
 def _rsi(df, window=14):
     df_strat = df.copy()
-    rsi_indicator = RSIIndicator(close=df_strat['Close'], window=window)
+    rsi_indicator = RSIIndicator(close=df_strat['close'], window=window)
     df_strat['RSI'] = rsi_indicator.rsi()
     return df_strat
 
 def _adx(df, window=14):
     df_strat = df.copy()
     adx_indicator = ADXIndicator(
-        high=df_strat['High'],
-        low=df_strat['Low'],
-        close=df_strat['Close'],
+        high=df_strat['high'],
+        low=df_strat['low'],
+        close=df_strat['close'],
         window=window
     )
     df_strat['ADX'] = adx_indicator.adx()
@@ -29,18 +29,24 @@ def _adx(df, window=14):
 
 def _mfi(df, window=14):
     df_strat = df.copy()
+    
+    volume_col = 'tick_volume' 
+    if volume_col not in df_strat.columns:
+         df_strat['MFI'] = np.nan
+         return df_strat
+
     mfi_indicator = MFIIndicator(
-        high=df_strat['High'],
-        low=df_strat['Low'],
-        close=df_strat['Close'],
-        volume=df_strat['Volume'],
+        high=df_strat['high'],
+        low=df_strat['low'],
+        close=df_strat['close'],
+        volume=df_strat[volume_col],
         window=window
     )
     df_strat['MFI'] = mfi_indicator.money_flow_index()
     return df_strat
 
 def _volatility(data, window=14):
-    data['Volatility'] = data['Close'].rolling(window=window).std()
+    data['Volatility'] = data['close'].rolling(window=window).std()
     return data
 
 def _yield_spread(symbol, data):
@@ -70,15 +76,17 @@ def _yield_spread(symbol, data):
             pass
 
     if not all_yield_data:
+        data['Ticker_Yield_Spread'] = np.nan
         return data
 
     yield_data = pd.concat(all_yield_data, axis=1)
     data_index = pd.to_datetime(data.index).tz_localize(None)
     yield_data.index = pd.to_datetime(yield_data.index).tz_localize(None)
+    
     yield_data_aligned = yield_data.reindex(data_index, method='ffill').ffill().bfill()
     
     data_out = data.copy()
-    spread_value = 0.0
+    spread_value = np.nan 
     
     if "EUR" in symbol:
         spread_value = yield_data_aligned['EUR_10Y'] - yield_data_aligned['US_10Y']
@@ -93,6 +101,17 @@ def _yield_spread(symbol, data):
     data_out['Ticker_Yield_Spread'] = data_out['Ticker_Yield_Spread'].ffill().bfill()
     return data_out
 
+def _LONGSMA(df, window=200):
+    df_strat = df.copy()
+    df_strat[f'SMA_{window}'] = df_strat['close'].rolling(window=window).mean()
+    return df_strat
+
+def _SHORTSMA(df, window=50):
+    df_strat = df.copy()
+    df_strat[f'SMA_{window}'] = df_strat['close'].rolling(window=window).mean()
+    return df_strat
+
+
 def Strategy(df, symbol):
     df_strategy = df.copy()
     
@@ -101,34 +120,35 @@ def Strategy(df, symbol):
     df_strategy = _mfi(df_strategy)
     df_strategy = _yield_spread(symbol, df_strategy)
     df_strategy = _volatility(df_strategy)
-    
-    df_strategy = df_strategy.dropna()
-    
+    df_strategy = _LONGSMA(df_strategy)
+    df_strategy = _SHORTSMA(df_strategy)
     df_strategy['Macro_Bias'] = np.where(df_strategy['Ticker_Yield_Spread'] > 0, 1, 
-                                        np.where(df_strategy['Ticker_Yield_Spread'] < 0, -1, 0))
+                                         np.where(df_strategy['Ticker_Yield_Spread'] < 0, -1, 0))
     
-    vol_threshold = df_strategy['Volatility'].mean()
+    vol_threshold = df_strategy['Volatility'].mean() 
     df_strategy['Vol_Filter'] = df_strategy['Volatility'] > vol_threshold
     
+    
     buy_conditions = (
-        (df_strategy['Macro_Bias'] == 1) & 
+        #(df_strategy['Macro_Bias'] == 1) & 
         (df_strategy['ADX'] > 25) &
-        (df_strategy['DI_Pos'] > df_strategy['DI_Neg']) &
-        (df_strategy['RSI'] < 30) & 
+        (df_strategy['RSI'] < 35) & 
         (df_strategy['MFI'] > 50) &
-        (df_strategy['Vol_Filter'])
+        (df_strategy['Vol_Filter']) &
+        (df_strategy['SMA_50'] > df_strategy['SMA_200'])
     )
     
     sell_conditions = (
-        (df_strategy['Macro_Bias'] == -1) & 
+        #(df_strategy['Macro_Bias'] == -1) & 
         (df_strategy['ADX'] > 25) &
-        (df_strategy['DI_Neg'] > df_strategy['DI_Pos']) &
-        (df_strategy['RSI'] > 70) &
+        (df_strategy['RSI'] > 65) &
         (df_strategy['MFI'] < 50) &
-        (df_strategy['Vol_Filter'])
+        (df_strategy['Vol_Filter']) &
+        (df_strategy['SMA_50'] < df_strategy['SMA_200'])
     )
     
-    df_strategy['Signal'] = np.where(
+
+    df_strategy['signal'] = np.where(
         buy_conditions, 
         1,
         np.where(
@@ -138,6 +158,6 @@ def Strategy(df, symbol):
         )
     )
 
-    df_strategy = df_strategy.drop(columns=['Macro_Bias', 'Vol_Filter', 'Sentiment_Filter'], errors='ignore')
-
-    return df_strategy
+    df_strategy = df_strategy.drop(columns=['Macro_Bias', 'Vol_Filter'], errors='ignore')
+    df_strategy.to_csv("debug_strategy_output.csv")
+    return df_strategy.dropna()
