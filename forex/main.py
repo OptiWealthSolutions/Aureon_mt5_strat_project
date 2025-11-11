@@ -1,10 +1,11 @@
 import MetaTrader5 as mt5
 import time
 from datetime import datetime
-
+import pandas as pd
 from data_fetcher import initialize_mt5, get_data_from_mt5, shutdown_mt5
 from strategy import Strategy
 from trade_executor import place_market_order, close_all_positions_for_symbol, check_open_positions
+from risk_manager import risk_manager # Le nouveau module
 
 # univers de trading :
 FOREX_UNIVERSE = [
@@ -16,54 +17,78 @@ FOREX_UNIVERSE = [
     "CADJPY", "CADCHF",
     "CHFJPY",
 ]
+
 # Strategy Params 
-TIMEFRAME = mt5.TIMEFRAME_H1 
-Risk_max = 0.02
-LOT_SIZE = 0.03 
+TIMEFRAME = mt5.TIMEFRAME_M1 
+RISK_MAX = 0.02
+CONFIDENCE_INDEX = 1.0
+
+# Bot Params
 sleeping_time = 60
 window = 14
 
 def check_symbol_for_signal(symbol):
     print(f"\n--- Vérification de {symbol} ---")
     try:
-   
-        n_bars = window + 50    
+        # Assurez-vous d'avoir assez de barres pour les indicateurs (window)
+        n_bars = window + 50     
+        
+        # --- FETCH 1 UNIQUE FOIS ---
         df_raw = get_data_from_mt5(symbol, TIMEFRAME, n_bars)
         
         if df_raw is None:
             print(f"Impossible de récupérer les données pour {symbol}.")
             return
+
+        # 1. Calcul de la Stratégie (Signaux)
         df_strategy = Strategy(df_raw, symbol)
-        
+
+        # 2. Calcul du Lot Size (Gestion du Risque)
+        # --- CORRECTION DE LA REDONDANCE : UTILISE DF_RAW ---
+        # Le 1000 est une valeur à remplacer par le capital actuel si vous le pouvez
+        LOT_SIZE_DF = risk_manager(df_raw, 10000, RISK_MAX, CONFIDENCE_INDEX) 
+
+        if LOT_SIZE_DF.empty or 'Lot_Size' not in LOT_SIZE_DF.columns:
+            print(f"ERREUR: Lot size non calculé pour {symbol}.")
+            return
+            
+        final_lot_size = LOT_SIZE_DF['Lot_Size'].iloc[-1]
+
+        # 3. Prise de Décision
         last_signal = df_strategy['signal'].iloc[-1]
         current_position = check_open_positions(symbol) # 0=Flat, 1=Long, -1=Short
 
         print(f"[{symbol}] Dernier signal: {last_signal} | Position actuelle: {current_position}")
-
+        
+        # --- 4. EXÉCUTION DES ORDRES ---
         
         # CAS 1: Signal d'ACHAT (1)
         if last_signal == 1:
             if current_position == 0:
-                # On est FLAT -> On ouvre LONG
+                # Flat -> Ouvrir LONG
                 print(f"ACTION ({symbol}): Signal d'achat détecté. Ouverture d'une position LONG.")
-                place_market_order(symbol, mt5.ORDER_TYPE_BUY, LOT_SIZE)
+                print(f"LOT SIZE CALCULÉ: {final_lot_size} lots")
+                place_market_order(symbol, mt5.ORDER_TYPE_BUY, final_lot_size)
             elif current_position == -1:
-                # On est SHORT -> On ferme le SHORT
-                print(f"ACTION ({symbol}): Signal d'achat (inverse) détecté. Fermeture de la position SHORT.")
+                # Short -> Fermer SHORT (Renversement)
+                print(f"ACTION ({symbol}): Renversement. Fermeture de la position SHORT.")
                 close_all_positions_for_symbol(symbol)
-            else: # current_position == 1
-                print(f"ACTION ({symbol}): Signal d'achat, mais déjà LONG. On ne fait rien.")
-            # CAS 2: Signal de VENTE (-1)
+            # Sinon (current_position == 1): Maintien
+        
+        # CAS 2: Signal de VENTE (-1)
         elif last_signal == -1:
             if current_position == 0:
-                # On est FLAT -> On ouvre SHORT
+                # Flat -> Ouvrir SHORT
                 print(f"ACTION ({symbol}): Signal de vente détecté. Ouverture d'une position SHORT.")
-                place_market_order(symbol, mt5.ORDER_TYPE_SELL, LOT_SIZE)
+                print(f"LOT SIZE CALCULÉ: {final_lot_size} lots")
+                place_market_order(symbol, mt5.ORDER_TYPE_SELL, final_lot_size)
             elif current_position == 1:
-                print(f"ACTION ({symbol}): Signal de vente (inverse) détecté. Fermeture de la position LONG.")
+                # Long -> Fermer LONG (Renversement)
+                print(f"ACTION ({symbol}): Renversement. Fermeture de la position LONG.")
                 close_all_positions_for_symbol(symbol)
-            else: # current_position == -1
-                print(f"ACTION ({symbol}): Signal de vente, mais déjà SHORT. On ne fait rien.")
+            # Sinon (current_position == -1): Maintien
+        
+        # CAS 3: Signal NEUTRE (0)
         else:
             print(f"ACTION ({symbol}): Signal neutre. Maintien de la position ({current_position}).")
             

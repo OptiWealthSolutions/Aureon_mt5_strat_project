@@ -2,23 +2,22 @@ import MetaTrader5 as mt5
 import matplotlib.pyplot as plt
 from data_fetcher import get_data_from_mt5, initialize_mt5, shutdown_mt5
 from strategy import Strategy
-
+import pandas as pd
 
 SYMBOL = "EURUSD"
 TIMEFRAME = mt5.TIMEFRAME_H1
-N_BARS = 50000
+N_BARS = 5000
 
-INITIAL_CAPITAL = 10000
-LOT_SIZE = 0.03
-SPREAD_PIPS = 0.6
-COMMISSION_PER_LOT = 3.5
+INITIAL_CAPITAL = 1000
+LOT_SIZE = 0.2
+# Ajusté pour simuler le compte Zero (ECN)
+SPREAD_PIPS = 0.1 
+# Ajusté au maximum documenté par côté (3.0 USD / lot / côté)
+COMMISSION_PER_LOT = 3.0 
 PIP_VALUE_USD_PER_LOT = 10.0
 
 
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-from strategy import Strategy
+
 
 class EventDrivenBacktester:
     def __init__(self, df, symbol, strategy_func, initial_capital, lot_size_fixed, spread_pips, commission_per_lot, pip_value_usd):
@@ -45,10 +44,6 @@ class EventDrivenBacktester:
 
     def run_backtest(self):
         self.data = self.strategy_func(self.data_raw, self.symbol)
-        if self.data.empty:
-            print(f"La stratégie n'a généré aucune donnée pour {self.symbol}.")
-            return False
-        
         self.data = self.data.dropna()
         self.equity_curve = [self.initial_capital]
         self.current_position = 0
