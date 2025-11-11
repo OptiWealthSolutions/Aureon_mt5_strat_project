@@ -15,7 +15,14 @@ def Strategy(df,symbol):
     df_strategy = vol(df_strategy, window=14)
     vol_threshold = df_strategy['Volatility'].mean()
     df_strategy['signal'] = np.where(
-        (df_strategy['RSI'] < 30),1,(np.where((df_strategy['RSI'] > 70) ),-1,0))
+        df_strategy['RSI'] < 30,  # Condition 1 (SI)
+        1,                        # Si C1 est Vraie -> 1
+        np.where(                 # Si C1 est Fausse (SINON...)
+            df_strategy['RSI'] > 70,  # Condition 2 (SI)
+            -1,                       # Si C2 est Vraie -> -1
+            0                         # Si C2 est Fausse -> 0
+        )
+    )
     
 
     return df_strategy

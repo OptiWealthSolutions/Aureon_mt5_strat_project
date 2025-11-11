@@ -73,8 +73,8 @@ if __name__ == "__main__":
         print("--- Lancement du Backtest (Script) ---")
         
         symbol = "EURUSD"
-        timeframe = mt5.TIMEFRAME_H1
-        num_bars = 5000
+        timeframe = mt5.TIMEFRAME_M1
+        num_bars = 50000
 
         data = get_data_from_mt5(symbol, timeframe, num_bars)
         
