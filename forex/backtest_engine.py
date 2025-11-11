@@ -1,100 +1,161 @@
+import MetaTrader5 as mt5
+import matplotlib.pyplot as plt
+from data_fetcher import get_data_from_mt5, initialize_mt5, shutdown_mt5
+from strategy import Strategy
+
+
+SYMBOL = "EURUSD"
+TIMEFRAME = mt5.TIMEFRAME_H1
+N_BARS = 50000
+
+INITIAL_CAPITAL = 10000
+LOT_SIZE = 0.03
+SPREAD_PIPS = 0.6
+COMMISSION_PER_LOT = 3.5
+PIP_VALUE_USD_PER_LOT = 10.0
+
+
 import pandas as pd
 import numpy as np
-import MetaTrader5 as mt5
+import matplotlib.pyplot as plt
 from strategy import Strategy
-from data_fetcher import get_data_from_mt5, initialize_mt5, shutdown_mt5
 
-def calculate_performance_metrics(df, periods_per_year=252):
-    
-    if 'strategy_return' not in df or df['strategy_return'].empty:
-        return {}
+class EventDrivenBacktester:
+    def __init__(self, df, symbol, strategy_func, initial_capital, lot_size_fixed, spread_pips, commission_per_lot, pip_value_usd):
+        self.data_raw = df
+        self.symbol = symbol
+        self.strategy_func = strategy_func
+        self.initial_capital = initial_capital
+        self.lot_size_fixed = lot_size_fixed
+        self.spread_in_price = spread_pips * 0.0001
+        self.commission_cost = commission_per_lot * lot_size_fixed
+        self.pip_value_usd = pip_value_usd
+        self.current_position = 0
+        self.entry_price = 0.0
+        self.equity_curve = []
+        self.data = pd.DataFrame()
 
-    total_return = df['strategy_equity'].iloc[-1] - 1
-    
-    daily_returns = df['strategy_return'].resample('D').sum()
-    
-    mean_daily_return = daily_returns.mean()
-    std_daily_return = daily_returns.std()
-    
-    sharpe_ratio = (mean_daily_return / std_daily_return) if std_daily_return != 0 else 0
-    sharpe_ratio_annualized = sharpe_ratio * np.sqrt(periods_per_year)
+    def calculate_pnl_usd(self, entry_price, exit_price, position_type, lot_size):
+        pips = (exit_price - entry_price) * 10000
+        if position_type == -1:
+            pips = (entry_price - exit_price) * 10000
+        
+        usd_pnl = pips * self.pip_value_usd * lot_size
+        return usd_pnl
 
-    rolling_max = df['strategy_equity'].cummax()
-    drawdown = df['strategy_equity'] / rolling_max - 1
-    max_drawdown = drawdown.min()
+    def run_backtest(self):
+        self.data = self.strategy_func(self.data_raw, self.symbol)
+        if self.data.empty:
+            print(f"La stratégie n'a généré aucune donnée pour {self.symbol}.")
+            return False
+        
+        self.data = self.data.dropna()
+        self.equity_curve = [self.initial_capital]
+        self.current_position = 0
+        self.entry_price = 0.0
 
-    trades = df['position'].diff().fillna(0)
-    num_trades = (trades != 0).sum()
+        for i in range(1, len(self.data)):
+            signal = self.data['signal'].iloc[i]
+            close_price = self.data['close'].iloc[i]
+            
+            ask_price = close_price + self.spread_in_price
+            bid_price = close_price
+            
+            capital = self.equity_curve[-1]
 
-    metrics = {
-        'total_return_pct': total_return * 100,
-        'annualized_sharpe_ratio': sharpe_ratio_annualized,
-        'max_drawdown_pct': max_drawdown * 100,
-        'number_of_trades': num_trades
-    }
-    return metrics
+            if self.current_position == 0:
+                if signal == 1:
+                    self.current_position = 1
+                    self.entry_price = ask_price
+                    capital -= self.commission_cost
+                elif signal == -1:
+                    self.current_position = -1
+                    self.entry_price = bid_price
+                    capital -= self.commission_cost
+            
+            elif self.current_position == 1:
+                if signal == -1 or signal == 0:
+                    exit_price = bid_price
+                    pnl = self.calculate_pnl_usd(self.entry_price, exit_price, 1, self.lot_size_fixed)
+                    capital += pnl
+                    capital -= self.commission_cost
+                    
+                    self.current_position = 0
+                    self.entry_price = 0.0
+                    
+                    if signal == -1:
+                        self.current_position = -1
+                        self.entry_price = bid_price
+                        capital -= self.commission_cost
 
-def backtestEngine(df, symbol, transaction_cost_pct=0.0001):
-    
-    df_strategy = Strategy(df, symbol)
-    
-    if df_strategy is None or df_strategy.empty:
-        print(f"La stratégie n'a généré aucun signal pour {symbol}.")
-        return None, None
+            elif self.current_position == -1:
+                if signal == 1 or signal == 0:
+                    exit_price = ask_price
+                    pnl = self.calculate_pnl_usd(self.entry_price, exit_price, -1, self.lot_size_fixed)
+                    capital += pnl
+                    capital -= self.commission_cost
+                    
+                    self.current_position = 0
+                    self.entry_price = 0.0
+                    
+                    if signal == 1:
+                        self.current_position = 1
+                        self.entry_price = ask_price
+                        capital -= self.commission_cost
+                        
+            self.equity_curve.append(capital)
+        
+        self.data['equity'] = self.equity_curve
+        return True
 
-    positions = df_strategy['signal'].replace(0, np.nan).ffill().fillna(0)
-    
-    market_returns = df_strategy['close'].pct_change()
-    strategy_returns = market_returns * positions.shift(1)
+    def plot_equity_curve(self):
+        plt.figure(figsize=(12, 7))
+        plt.plot(self.data.index, self.data['equity'], label='Capital Stratégie')
+        plt.title(f'Courbe de Capital (Equity Curve) pour {self.symbol}')
+        plt.ylabel('Capital (USD)')
+        plt.xlabel('Date')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
 
-    trades = positions.diff().fillna(0)
-    transaction_costs = abs(trades) * transaction_cost_pct
-    strategy_returns -= transaction_costs
-
-    buy_and_hold_equity = (1 + market_returns.fillna(0)).cumprod()
-    strategy_equity = (1 + strategy_returns.fillna(0)).cumprod()
-    
-    df_strategy['position'] = positions
-    df_strategy['market_return'] = market_returns
-    df_strategy['strategy_return'] = strategy_returns
-    df_strategy['buy_and_hold_equity'] = buy_and_hold_equity
-    df_strategy['strategy_equity'] = strategy_equity
-    
-    metrics = calculate_performance_metrics(df_strategy)
-    
-    print(f"Moteur de backtest (Long/Short) exécuté pour {symbol}.")
-    
-    return df_strategy, metrics
-
+    def get_stats(self):
+        total_return = (self.equity_curve[-1] / self.initial_capital - 1) * 100
+        print(f"--- Statistiques du Backtest Événementiel ---")
+        print(f"Capital Initial: {self.initial_capital:,.2f} USD")
+        print(f"Capital Final: {self.equity_curve[-1]:,.2f} USD")
+        print(f"Retour Total: {total_return:.2f}%")
 
 if __name__ == "__main__":
-
+    
     if initialize_mt5():
-        print("--- Lancement du Backtest (Script) ---")
+        print(f"--- Lancement du Backtest Événementiel pour {SYMBOL} ---")
         
-        symbol = "EURUSD"
-        timeframe = mt5.TIMEFRAME_M1
-        num_bars = 50000
-
-        data = get_data_from_mt5(symbol, timeframe, num_bars)
+        data = get_data_from_mt5(SYMBOL, TIMEFRAME, N_BARS)
         
-        if data is not None and not data.empty:
+        if data is not None:
             
-            data.index = pd.to_datetime(data.index)
+            backtester = EventDrivenBacktester(
+                df=data,
+                symbol=SYMBOL,
+                strategy_func=Strategy,
+                initial_capital=INITIAL_CAPITAL,
+                lot_size_fixed=LOT_SIZE,
+                spread_pips=SPREAD_PIPS,
+                commission_per_lot=COMMISSION_PER_LOT,
+                pip_value_usd=PIP_VALUE_USD_PER_LOT
+            )
             
-            backtest_result, metrics = backtestEngine(data, symbol, transaction_cost_pct=0.0001)
+            success = backtester.run_backtest()
             
-            if backtest_result is not None:
-                print("\n--- Résultats du Backtest (Dernières 5 lignes) ---")
-                print(backtest_result[['close', 'signal', 'position', 'buy_and_hold_equity', 'strategy_equity']].tail())
+            if success:
+                backtester.get_stats()
+                backtester.plot_equity_curve()
+            else:
+                print("Échec de l'exécution du backtest.")
                 
-                print("\n--- Métriques de Performance ---")
-                for key, value in metrics.items():
-                    print(f"{key.replace('_', ' ').capitalize()}: {value:.2f}")
-        
         else:
-            print(f"Aucune donnée reçue pour {symbol}.")
+            print("Impossible de récupérer les données pour le backtest.")
 
         shutdown_mt5()
     else:
-        print("Échec de l'initialisation de MT5. Fin du backtest.")
+        print("Impossible d'initialiser MT5. Vérifiez que le terminal est lancé.")

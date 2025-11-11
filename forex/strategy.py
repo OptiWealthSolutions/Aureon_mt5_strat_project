@@ -10,20 +10,27 @@ fredapi_key = "e16626c91fa2b1af27704a783939bf72"
 def Strategy(df,symbol):
     df_strategy = df.copy()
     df_strategy = RSI(df_strategy, window=14)
-    #df_strategy = ADX(df_strategy, window=14)
+    df_strategy = ADX(df_strategy, window=14)
     #df_strategy = YieldSpread(symbol, df_strategy)
     df_strategy = vol(df_strategy, window=14)
     vol_threshold = df_strategy['Volatility'].mean()
     df_strategy['signal'] = np.where(
-        df_strategy['RSI'] < 30,  # Condition 1 (SI)
-        1,                        # Si C1 est Vraie -> 1
-        np.where(                 # Si C1 est Fausse (SINON...)
-            df_strategy['RSI'] > 70,  # Condition 2 (SI)
-            -1,                       # Si C2 est Vraie -> -1
-            0                         # Si C2 est Fausse -> 0
-        )
+    # CONDITION ACHAT :
+    # Tendance forte (ADX > 20) ET Force acheteuse > Force vendeuse (+DI > -DI)
+    (df_strategy['ADX'] > 20) & 
+    (df_strategy['+DI'] > df_strategy['-DI']) & 
+    (df_strategy['Ticker_Yield_Spread'] > 0),
+    1,
+    np.where(
+        # CONDITION VENTE :
+        # Tendance forte (ADX > 20) ET Force vendeuse > Force acheteuse (+DI < -DI)
+        (df_strategy['ADX'] > 20) & 
+        (df_strategy['+DI'] < df_strategy['-DI']) & 
+        (df_strategy['Ticker_Yield_Spread'] < 0),
+        -1,
+        0
     )
-    
+)
 
     return df_strategy
 
@@ -98,3 +105,4 @@ def YieldSpread(symbol, data):
 def vol(data, window=14):
     data['Volatility'] = data['close'].rolling(window=window).std()
     return data
+
