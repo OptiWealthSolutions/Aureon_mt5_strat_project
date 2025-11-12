@@ -5,11 +5,11 @@ from strategy import Strategy
 import pandas as pd
 
 SYMBOL = "EURUSD"
-TIMEFRAME = mt5.TIMEFRAME_M1
-N_BARS = 13000
+TIMEFRAME = mt5.TIMEFRAME_H1
+N_BARS = 1000
 
 INITIAL_CAPITAL = 1000
-LOT_SIZE = 0.2
+LOT_SIZE = 0.5
 # Ajusté pour simuler le compte Zero (ECN)
 SPREAD_PIPS = 0.1 
 # Ajusté au maximum documenté par côté (3.0 USD / lot / côté)

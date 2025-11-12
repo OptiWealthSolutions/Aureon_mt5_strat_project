@@ -9,47 +9,63 @@ from risk_manager import risk_manager # Le nouveau module
 
 # univers de trading :
 FOREX_UNIVERSE = [
-    "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "NZDUSD", "USDCHF",
-    "EURGBP", "EURJPY", "EURAUD", "EURCAD", "EURNZD", "EURCHF",
-    "GBPJPY", "GBPAUD", "GBPCAD", "GBPNZD", "GBPCHF",
-    "AUDJPY", "AUDCAD", "AUDNZD", "AUDCHF",
-    "NZDJPY", "NZDCAD", "NZDCHF",
-    "CADJPY", "CADCHF",
-    "CHFJPY",
+    "EURUSD"
 ]
 
 # Strategy Params 
-TIMEFRAME = mt5.TIMEFRAME_M1 
+TIMEFRAME_Base = mt5.TIMEFRAME_M15
+TF_MAP = {
+    mt5.TIMEFRAME_M30: 'M30',
+    mt5.TIMEFRAME_H1: 'H1',
+    mt5.TIMEFRAME_H4: 'H4',
+    mt5.TIMEFRAME_D1: 'D1'
+}
+
 RISK_MAX = 0.02
 CONFIDENCE_INDEX = 1.0
-
-# Bot Params
 sleeping_time = 60
 window = 14
+N_BARS_FETCH = 1000
 
 def check_symbol_for_signal(symbol):
-    print(f"\n--- Vérification de {symbol} ---")
     try:
-        # Assurez-vous d'avoir assez de barres pour les indicateurs (window)
-        n_bars = window + 50     
-        
-        # --- FETCH 1 UNIQUE FOIS ---
-        df_raw = get_data_from_mt5(symbol, TIMEFRAME, n_bars)
-        
-        if df_raw is None:
-            print(f"Impossible de récupérer les données pour {symbol}.")
-            return
+        print(f"\n--- Vérification de {symbol} ---")
+        df_base = get_data_from_mt5(symbol, TIMEFRAME_Base, N_BARS_FETCH)           
+        df_raw = df_base.copy()
 
-        # 1. Calcul de la Stratégie (Signaux)
+        # Boucle pour récupérer et fusionner les timeframes supérieures
+        for tf_name, tf_mt5_value in TF_MAP.items():
+            df_high_tf = get_data_from_mt5(symbol, tf_mt5_value, N_BARS_FETCH)
+            
+            if df_high_tf is not None:
+                # Renomme les colonnes de la TF haute pour éviter les conflits (ex: 'close' -> 'close_H4')
+                df_high_tf_clean = df_high_tf[['open', 'high', 'low', 'close', 'tick_volume']].rename(
+                    columns={col: f'{col}_{tf_name}' for col in ['open', 'high', 'low', 'close', 'tick_volume']}
+                )
+
+                # Aligne l'index de la TF haute sur l'index de la base et remplit les valeurs manquantes (ffill)
+                df_high_tf_clean = df_high_tf_clean.reindex(df_raw.index, method='ffill')
+
+                # Fusionne les données dans le DataFrame principal
+                df_raw = df_raw.merge(
+                    df_high_tf_clean, 
+                    left_index=True, 
+                    right_index=True, 
+                    how='left'
+                )
+            else:
+                print(f"Avertissement: Échec de la récupération des données pour le TF {tf_name}.")
+
+        # --- 2. CALCUL DE LA STRATÉGIE ET DU RISQUE ---
+        
+        # Votre fonction Strategy doit maintenant utiliser les colonnes MTF (ex: df_raw['close_H4'])
         df_strategy = Strategy(df_raw, symbol)
-
-        # 2. Calcul du Lot Size (Gestion du Risque)
-        # --- CORRECTION DE LA REDONDANCE : UTILISE DF_RAW ---
-        # Le 1000 est une valeur à remplacer par le capital actuel si vous le pouvez
+        
+        # Calcul du Lot Size (Gestion du Risque)
         LOT_SIZE_DF = risk_manager(df_raw, 10000, RISK_MAX, CONFIDENCE_INDEX) 
-
-        if LOT_SIZE_DF.empty or 'Lot_Size' not in LOT_SIZE_DF.columns:
-            print(f"ERREUR: Lot size non calculé pour {symbol}.")
+        
+        if df_strategy.empty or 'signal' not in df_strategy.columns or LOT_SIZE_DF.empty or 'Lot_Size' not in LOT_SIZE_DF.columns:
+            print(f"ERREUR: Stratégie ou Lot Size non calculé pour {symbol}.")
             return
             
         final_lot_size = LOT_SIZE_DF['Lot_Size'].iloc[-1]
