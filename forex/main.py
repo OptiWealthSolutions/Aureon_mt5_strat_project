@@ -14,12 +14,6 @@ FOREX_UNIVERSE = [
 
 # Strategy Params 
 TIMEFRAME_Base = mt5.TIMEFRAME_M15
-TF_MAP = {
-    mt5.TIMEFRAME_M30: 'M30',
-    mt5.TIMEFRAME_H1: 'H1',
-    mt5.TIMEFRAME_H4: 'H4',
-    mt5.TIMEFRAME_D1: 'D1'
-}
 
 RISK_MAX = 0.02
 CONFIDENCE_INDEX = 1.0
@@ -32,29 +26,6 @@ def check_symbol_for_signal(symbol):
         print(f"\n--- Vérification de {symbol} ---")
         df_base = get_data_from_mt5(symbol, TIMEFRAME_Base, N_BARS_FETCH)           
         df_raw = df_base.copy()
-
-        # Boucle pour récupérer et fusionner les timeframes supérieures
-        for tf_name, tf_mt5_value in TF_MAP.items():
-            df_high_tf = get_data_from_mt5(symbol, tf_mt5_value, N_BARS_FETCH)
-            
-            if df_high_tf is not None:
-                # Renomme les colonnes de la TF haute pour éviter les conflits (ex: 'close' -> 'close_H4')
-                df_high_tf_clean = df_high_tf[['open', 'high', 'low', 'close', 'tick_volume']].rename(
-                    columns={col: f'{col}_{tf_name}' for col in ['open', 'high', 'low', 'close', 'tick_volume']}
-                )
-
-                # Aligne l'index de la TF haute sur l'index de la base et remplit les valeurs manquantes (ffill)
-                df_high_tf_clean = df_high_tf_clean.reindex(df_raw.index, method='ffill')
-
-                # Fusionne les données dans le DataFrame principal
-                df_raw = df_raw.merge(
-                    df_high_tf_clean, 
-                    left_index=True, 
-                    right_index=True, 
-                    how='left'
-                )
-            else:
-                print(f"Avertissement: Échec de la récupération des données pour le TF {tf_name}.")
 
         # --- 2. CALCUL DE LA STRATÉGIE ET DU RISQUE ---
         

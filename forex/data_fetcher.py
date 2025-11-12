@@ -1,7 +1,8 @@
 import MetaTrader5 as mt5
 import pandas as pd
 from datetime import datetime
-from main import TF_MAP
+
+
 def initialize_mt5():
     if not mt5.initialize():
         print(f"initialize() a échoué, code d'erreur = {mt5.last_error()}")

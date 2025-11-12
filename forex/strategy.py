@@ -4,11 +4,18 @@ import fredapi as fred
 from ta.momentum import RSIIndicator
 from ta.volume import MFIIndicator
 from ta.trend import ADXIndicator
-from main import TF_MAP
 from data_fetcher import get_data_from_mt5
+import MetaTrader5 as mt5
 
 fredapi_key = "e16626c91fa2b1af27704a783939bf72"
 
+TIMEFRAME_Base = mt5.TIMEFRAME_M15
+TF_MAP = {
+    mt5.TIMEFRAME_M30: 'M30',
+    mt5.TIMEFRAME_H1: 'H1',
+    mt5.TIMEFRAME_H4: 'H4',
+    mt5.TIMEFRAME_D1: 'D1'
+}
 
 def _rsi(df, window=14,timeframe=float):
     df_strat = df.copy()
