@@ -5,6 +5,8 @@ from ta.momentum import RSIIndicator
 from ta.volume import MFIIndicator
 from ta.trend import ADXIndicator
 from main import TF_MAP
+from data_fetcher import get_data_from_mt5
+
 fredapi_key = "e16626c91fa2b1af27704a783939bf72"
 
 
@@ -62,25 +64,26 @@ def Strategy(df, symbol):
     #defaut time frame
     df_strategy = _rsi(df_strategy, timeframe='Base')
     df_strategy = _adx(df_strategy, timeframe='Base')
-    #boucle pour charger les indicateurs de toutes les timeframes
-    for timeframe, _ in TF_MAP.items():
-        df_strategy = _rsi(df_strategy, timeframe=timeframe)
-        df_strategy = _adx(df_strategy, timeframe=timeframe)
-        df_strategy = _LONGSMA(df_strategy, timeframe=timeframe)
-        df_strategy = _SHORTSMA(df_strategy, timeframe=timeframe)
     df_strategy = _mfi(df_strategy)
     df_strategy = _LONGSMA(df_strategy, timeframe='Base')
     df_strategy = _SHORTSMA(df_strategy, timeframe='Base')
-
-    
+    df_tf = pd.DataFrame()
+    for timeframe in TF_MAP.keys():
+        df_tf[f"{timeframe}"] = get_data_from_mt5(symbol, timeframe, len(df_strategy))
+        df_tf = _rsi(df_tf, timeframe=timeframe)
+        df_tf = _adx(df_tf, timeframe=timeframe)
+        df_tf = _LONGSMA(df_tf, timeframe=timeframe)
+        df_tf = _SHORTSMA(df_tf, timeframe=timeframe)
+        # Merge des indicateurs de la timeframe actuelle dans le DataFrame principal
+        df_strategy = df_strategy.join(df_tf, rsuffix=f"_{timeframe}")
     
     buy_conditions = (
         #(df_strategy['Macro_Bias'] == 1) &
         (df_strategy[f'ADX_Base'] > 25) &
-        (df_strategy[f'RSI_Base'] < 35) & 
         (df_strategy['MFI'] > 50) &
-        (df_strategy['Vol_Filter']) &
-        (df_strategy[f'SMA_20_Base'] > df_strategy[f'SMA_50_Base'])
+        (df_strategy[f'SMA_20_H4'] > df_strategy[f'SMA_50_H4']) &
+        (df_strategy[f'RSI_H4'] < 35)
+
     )
     
     sell_conditions = (
@@ -88,8 +91,8 @@ def Strategy(df, symbol):
         (df_strategy[f'ADX_Base'] > 25) &
         (df_strategy[f'RSI_Base'] > 65) &
         (df_strategy['MFI'] < 50) &
-        (df_strategy['Vol_Filter']) &
-        (df_strategy['SMA_20'] < df_strategy['SMA_50'])
+        (df_strategy[f'SMA_20_H4'] < df_strategy[f'SMA_50_H4'])&
+        (df_strategy[f'RSI_H4'] > 65)
     )
     
 
