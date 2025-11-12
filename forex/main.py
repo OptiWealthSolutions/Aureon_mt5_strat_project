@@ -23,7 +23,7 @@ TF_MAP = {
 
 RISK_MAX = 0.02
 CONFIDENCE_INDEX = 1.0
-sleeping_time = 60
+sleeping_time = 900  # 15 minutes
 window = 14
 N_BARS_FETCH = 1000
 
