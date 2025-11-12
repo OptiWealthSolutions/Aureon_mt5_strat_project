@@ -9,13 +9,9 @@ import MetaTrader5 as mt5
 
 fredapi_key = "e16626c91fa2b1af27704a783939bf72"
 
-TIMEFRAME_Base = mt5.TIMEFRAME_M15
-TF_MAP = {
-    mt5.TIMEFRAME_M30: 'M30',
-    mt5.TIMEFRAME_H1: 'H1',
-    mt5.TIMEFRAME_H4: 'H4',
-    mt5.TIMEFRAME_D1: 'D1'
-}
+
+
+TF_LIST = [mt5.TIMEFRAME_M30, mt5.TIMEFRAME_H1, mt5.TIMEFRAME_H4, mt5.TIMEFRAME_D1]
 
 def _rsi(df, window=14,timeframe=float):
     df_strat = df.copy()
@@ -75,7 +71,7 @@ def Strategy(df, symbol):
     df_strategy = _LONGSMA(df_strategy, timeframe='Base')
     df_strategy = _SHORTSMA(df_strategy, timeframe='Base')
     df_tf = pd.DataFrame()
-    for timeframe in TF_MAP.keys():
+    for timeframe in TF_LIST:
         df_tf[f"{timeframe}"] = get_data_from_mt5(symbol, timeframe, len(df_strategy))
         df_tf = _rsi(df_tf, timeframe=timeframe)
         df_tf = _adx(df_tf, timeframe=timeframe)
