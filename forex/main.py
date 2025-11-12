@@ -58,10 +58,8 @@ def check_symbol_for_signal(symbol):
 
         # --- 2. CALCUL DE LA STRATÉGIE ET DU RISQUE ---
         
-        # Votre fonction Strategy doit maintenant utiliser les colonnes MTF (ex: df_raw['close_H4'])
         df_strategy = Strategy(df_raw, symbol)
         
-        # Calcul du Lot Size (Gestion du Risque)
         LOT_SIZE_DF = risk_manager(df_raw, 10000, RISK_MAX, CONFIDENCE_INDEX) 
         
         if df_strategy.empty or 'signal' not in df_strategy.columns or LOT_SIZE_DF.empty or 'Lot_Size' not in LOT_SIZE_DF.columns:
