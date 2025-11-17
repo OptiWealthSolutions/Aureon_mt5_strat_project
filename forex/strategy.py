@@ -4,7 +4,7 @@ import fredapi as fred
 from ta.momentum import RSIIndicator
 from ta.momentum import TDIIndicator
 import MetaTrader5 as mt5
-
+from ta.volatility import BollingerBands
 # Configuration
 pd.set_option('future.no_silent_downcasting', True)
 
@@ -14,6 +14,21 @@ def get_col_name(base_name, timeframe):
     return f"{base_name}_{timeframe}"
 
 # --- FONCTIONS INDICATEURS ---
+def _TDI(df, rsi_period=21, bb_period=34, bb_std=1.6185, fast_ma=2, slow_ma=7):
+    df_tdi = df.copy()
+    df_tdi['TDI_RSI'] = RSIIndicator(close=df_tdi['close'], window=rsi_period).rsi()
+    bb = BollingerBands(
+        close=df_tdi['TDI_RSI'], 
+        window=bb_period, 
+        window_dev=bb_std
+    )
+    df_tdi['TDI_BB_High'] = bb.bollinger_hband()
+    df_tdi['TDI_BB_Low'] = bb.bollinger_lband()
+    df_tdi['TDI_BB_Mid'] = bb.bollinger_mavg() 
+    df_tdi['TDI_Slow_MA'] = df_tdi['TDI_RSI'].rolling(window=slow_ma).mean()
+    df_tdi['TDI_Fast_MA'] = df_tdi['TDI_RSI'].rolling(window=fast_ma).mean()
+    
+    return df_tdi.dropna()
 
 def _rsi(df, window=14, timeframe='Base'):
     df_strat = df.copy()
@@ -29,10 +44,9 @@ def _rsi(df, window=14, timeframe='Base'):
 
 def _LONGSMA(df, window=50, timeframe='Base'):
     df_strat = df.copy()
-    col_close = get_col_name('close', timeframe)
-    
-    if col_close in df_strat.columns:
-        df_strat[f'SMA_{window}_{timeframe}'] = df_strat[col_close].rolling(window=window).mean()
+    df_ = get_col_name('close', timeframe)
+    if df_ in df_strat.columns:
+        df_strat[f'SMA_{window}_{timeframe}'] = df_strat[df_].rolling(window=window).mean()
     else:
         df_strat[f'SMA_{window}_{timeframe}'] = np.nan
     return df_strat
@@ -52,6 +66,12 @@ def _SHORTSMA(df, window=20, timeframe='Base'):
 
 def Strategy(df, symbol):
     df_strategy = df.copy()
+
+#logique de la fonction : identifiacation de trend et prise de position (long/short) selon les conditions des indicateurs
+# D1-H4 : SMA 200 < SM50 --> tendance haussière
+# H4- H1 : TDI en zone haussière  
+# M30 - M15 : TDI en zone haussière 
+
     #faire les appels pour chaque fonctions des features
     #M15
 
@@ -60,6 +80,8 @@ def Strategy(df, symbol):
     #H1
 
     #H4
+
+
 
     #D1
 
