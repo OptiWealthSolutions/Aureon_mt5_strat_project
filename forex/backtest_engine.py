@@ -4,11 +4,11 @@ from data_fetcher import get_data_from_mt5, initialize_mt5, shutdown_mt5
 from strategy import Strategy
 import pandas as pd
 
-SYMBOL = "EURUSD"
+SYMBOL = "USDJPY"
 TIMEFRAME = mt5.TIMEFRAME_M15
 N_BARS = 1000
 
-INITIAL_CAPITAL = 1000
+INITIAL_CAPITAL = 100000
 LOT_SIZE = 0.5
 # Ajusté pour simuler le compte Zero (ECN)
 SPREAD_PIPS = 0.1 
