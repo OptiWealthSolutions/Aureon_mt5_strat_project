@@ -5,7 +5,7 @@ from strategy import Strategy
 import pandas as pd
 
 SYMBOL = "EURUSD"
-TIMEFRAME = mt5.TIMEFRAME_H1
+TIMEFRAME = mt5.TIMEFRAME_M15
 N_BARS = 1000
 
 INITIAL_CAPITAL = 1000
